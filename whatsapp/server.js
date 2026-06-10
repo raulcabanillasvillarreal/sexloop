@@ -88,24 +88,35 @@ app.post('/api/typing', async (req, res) => {
 });
 
 // --- Embedded Signup (Coexistence): intercambio de code por token ---
+// Prueba varios redirect_uri (el SDK de JS usa distintos según el flujo).
 app.post('/api/embedded-signup', async (req, res) => {
-  const { code } = req.body || {};
+  const { code, redirectUri } = req.body || {};
   if (!code) return res.status(400).json({ ok: false, error: 'code requerido' });
   if (!config.appId || !config.appSecret) {
     return res.status(500).json({ ok: false, error: 'Falta META_APP_ID o META_APP_SECRET.' });
   }
-  try {
-    const url = `${GRAPH_BASE}/oauth/access_token`
-      + `?client_id=${encodeURIComponent(config.appId)}`
-      + `&client_secret=${encodeURIComponent(config.appSecret)}`
-      + `&code=${encodeURIComponent(code)}`;
-    const r = await fetch(url);
-    const data = await r.json();
-    if (!r.ok) return res.status(502).json({ ok: false, error: data?.error?.message || 'Error en intercambio', details: data });
-    res.json({ ok: true, access_token: data.access_token, token_type: data.token_type, expires_in: data.expires_in });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+  const withSlash = redirectUri ? redirectUri.replace(/\/?$/, '/') : null;
+  const candidates = [null, '', redirectUri, withSlash].filter((v, i, a) => a.indexOf(v) === i);
+  let lastErr = null;
+  for (const ru of candidates) {
+    if (ru === undefined) continue;
+    try {
+      let url = `${GRAPH_BASE}/oauth/access_token`
+        + `?client_id=${encodeURIComponent(config.appId)}`
+        + `&client_secret=${encodeURIComponent(config.appSecret)}`
+        + `&code=${encodeURIComponent(code)}`;
+      if (ru !== null) url += `&redirect_uri=${encodeURIComponent(ru)}`;
+      const r = await fetch(url);
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.access_token) {
+        return res.json({ ok: true, access_token: data.access_token, token_type: data.token_type, expires_in: data.expires_in });
+      }
+      lastErr = data?.error?.message || `HTTP ${r.status}`;
+    } catch (err) {
+      lastErr = err.message;
+    }
   }
+  res.status(502).json({ ok: false, error: lastErr || 'No se pudo intercambiar el código' });
 });
 
 // --- Importación inicial (30 días) --------------------------

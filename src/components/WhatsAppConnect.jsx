@@ -70,7 +70,7 @@ export default function WhatsAppConnect() {
         return;
       }
       // 4) Intercambiar el "code" por un token (en el backend, con el app secret)
-      whatsappApi.embeddedSignup(code).then((exchange) => {
+      whatsappApi.embeddedSignup(code, window.location.origin).then((exchange) => {
         if (!exchange.ok) {
           setStatus('error');
           setError(exchange.error || 'No se pudo obtener el token de acceso.');

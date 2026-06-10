@@ -61,7 +61,7 @@ export const whatsappApi = {
   importStatus: () => get('/api/import/status'),
 
   /** Intercambia el "code" del Embedded Signup (Coexistence) por un token. */
-  embeddedSignup: (code) => post('/api/embedded-signup', { code }),
+  embeddedSignup: (code, redirectUri) => post('/api/embedded-signup', { code, redirectUri }),
 };
 
 export default whatsappApi;
