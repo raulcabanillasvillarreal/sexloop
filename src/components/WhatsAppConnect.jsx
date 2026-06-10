@@ -59,7 +59,10 @@ export default function WhatsAppConnect() {
     setError(''); setResult(null); setStatus('connecting');
     sessionInfo.current = {};
 
-    window.FB.login(async (response) => {
+    // OJO: el SDK de Facebook NO acepta funciones async como callback
+    // ("Expression is of type asyncfunction, not function"). Usamos una
+    // función normal y manejamos el async con .then().
+    window.FB.login((response) => {
       const code = response?.authResponse?.code;
       if (!code) {
         setStatus('error');
@@ -67,18 +70,19 @@ export default function WhatsAppConnect() {
         return;
       }
       // 4) Intercambiar el "code" por un token (en el backend, con el app secret)
-      const exchange = await whatsappApi.embeddedSignup(code);
-      if (!exchange.ok) {
-        setStatus('error');
-        setError(exchange.error || 'No se pudo obtener el token de acceso.');
-        return;
-      }
-      setResult({
-        phone_number_id: sessionInfo.current.phone_number_id || '(revisa en Meta)',
-        waba_id: sessionInfo.current.waba_id || '(revisa en Meta)',
-        token: exchange.access_token || '',
+      whatsappApi.embeddedSignup(code).then((exchange) => {
+        if (!exchange.ok) {
+          setStatus('error');
+          setError(exchange.error || 'No se pudo obtener el token de acceso.');
+          return;
+        }
+        setResult({
+          phone_number_id: sessionInfo.current.phone_number_id || '(revisa en Meta)',
+          waba_id: sessionInfo.current.waba_id || '(revisa en Meta)',
+          token: exchange.access_token || '',
+        });
+        setStatus('done');
       });
-      setStatus('done');
     }, {
       config_id: CONFIG_ID,
       response_type: 'code',
