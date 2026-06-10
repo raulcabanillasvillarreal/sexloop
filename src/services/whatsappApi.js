@@ -37,6 +37,9 @@ export const whatsappApi = {
   /** ¿El backend está disponible y configurado? */
   health: () => get('/api/health'),
 
+  /** Estado del número y la WABA en Meta (verificación, calidad, bloqueos). */
+  waStatus: () => get('/api/wa-status'),
+
   /** Enviar texto a un número. */
   sendMessage: (phone, message, leadId) => post('/api/send', { phone, message, leadId }),
 

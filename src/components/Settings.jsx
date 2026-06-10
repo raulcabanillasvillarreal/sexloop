@@ -3,6 +3,7 @@ import { Plus, Trash2, Edit3, MessageSquare, Key, Sliders, DownloadCloud, Bell, 
 import { whatsappApi } from '../services/whatsappApi';
 import { isSoundEnabled, setSoundEnabled, requestNotificationPermission } from '../services/notifications';
 import WhatsAppConnect from './WhatsAppConnect';
+import WhatsAppStatus from './WhatsAppStatus';
 
 export default function Settings({ templates, saveTemplates }) {
   // --- Importación de historial (30 días) ---
@@ -176,6 +177,9 @@ export default function Settings({ templates, saveTemplates }) {
 
       {/* Columna Derecha: Configuración API & Parámetros */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+        {/* Estado en vivo del número y la WABA en Meta */}
+        <WhatsAppStatus />
 
         {/* Conexión del número real por Coexistence (QR) */}
         <WhatsAppConnect />
