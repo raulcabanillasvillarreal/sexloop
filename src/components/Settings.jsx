@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, Edit3, MessageSquare, Key, Sliders, DownloadCloud, Bell, BellOff } from 'lucide-react';
+import { Plus, Trash2, Edit3, MessageSquare, Key, Sliders, DownloadCloud, Bell, BellOff } from 'lucide-react';
 import { whatsappApi } from '../services/whatsappApi';
 import { isSoundEnabled, setSoundEnabled, requestNotificationPermission } from '../services/notifications';
 import WhatsAppConnect from './WhatsAppConnect';
 
-export default function Settings({ templates, saveTemplates, apiSettings, saveApiSettings }) {
+export default function Settings({ templates, saveTemplates }) {
   // --- Importación de historial (30 días) ---
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(null);
@@ -41,19 +41,6 @@ export default function Settings({ templates, saveTemplates, apiSettings, saveAp
   const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [newTemplate, setNewTemplate] = useState({ label: '', text: '' });
   
-  // Estado local para API
-  const [localApi, setLocalApi] = useState({
-    phoneNumberId: apiSettings.phoneNumberId || '',
-    verifyToken: apiSettings.verifyToken || '',
-    accessToken: apiSettings.accessToken || ''
-  });
-
-  // Guardar API Settings
-  const handleSaveApi = (e) => {
-    e.preventDefault();
-    saveApiSettings(localApi);
-  };
-
   // Agregar plantilla nueva
   const handleAddTemplate = (e) => {
     e.preventDefault();
@@ -193,51 +180,20 @@ export default function Settings({ templates, saveTemplates, apiSettings, saveAp
         {/* Conexión del número real por Coexistence (QR) */}
         <WhatsAppConnect />
 
-        {/* WhatsApp Cloud API Integración */}
+        {/* WhatsApp Cloud API — info (la config real vive en Vercel) */}
         <div className="chart-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
             <Key size={20} color="var(--violeta)" />
             <h3 className="chart-header" style={{ margin: 0 }}>WhatsApp Business Cloud API</h3>
           </div>
-
-          <form onSubmit={handleSaveApi} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div className="form-group">
-              <label className="form-label">Phone Number ID (ID Teléfono)</label>
-              <input
-                type="text"
-                className="form-input"
-                value={localApi.phoneNumberId}
-                onChange={(e) => setLocalApi({ ...localApi, phoneNumberId: e.target.value })}
-                placeholder="Ej. 104593821038482"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Verify Token (Webhook)</label>
-              <input
-                type="text"
-                className="form-input"
-                value={localApi.verifyToken}
-                onChange={(e) => setLocalApi({ ...localApi, verifyToken: e.target.value })}
-                placeholder="Ej. mi_token_verificacion_seguro"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Permanent Access Token (Meta Token)</label>
-              <textarea
-                className="form-input"
-                rows="3"
-                value={localApi.accessToken}
-                onChange={(e) => setLocalApi({ ...localApi, accessToken: e.target.value })}
-                placeholder="EAAWp... (Token largo generado en Meta Developers)"
-              ></textarea>
-            </div>
-
-            <button type="submit" className="btn-primary" style={{ alignSelf: 'flex-start' }}>
-              <Save size={14} /> Guardar Ajustes API
-            </button>
-          </form>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            La conexión con WhatsApp (token, Phone Number ID, webhook) se configura de forma
+            <strong> segura en el servidor</strong> mediante variables de entorno en Vercel
+            (no se guardan en el navegador). <strong>No necesitas llenar nada aquí.</strong>
+          </p>
+          <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '8px' }}>
+            Para cambiar credenciales: Vercel → Environments → Production → Redeploy.
+          </p>
         </div>
 
         {/* Importación de Historial (30 días · Coexistence) */}

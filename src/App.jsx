@@ -9,7 +9,6 @@ import {
   Save,
   Trash2,
   Menu,
-  X,
   Settings as SettingsIcon
 } from 'lucide-react';
 import { supabase, getLocalData, setLocalData, uploadMediaFile, waMediaType } from './supabaseClient';
@@ -66,11 +65,6 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [apiSettings, setApiSettings] = useState({
-    phoneNumberId: '',
-    verifyToken: '',
-    accessToken: ''
-  });
   
   // State de control del sidebar en celular
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -100,7 +94,6 @@ export default function App() {
     async function loadData() {
       // Cargar plantillas y API de ajustes locales
       setTemplates(getLocalData('sexloop_templates', DEFAULT_TEMPLATES));
-      setApiSettings(getLocalData('sexloop_api_settings', { phoneNumberId: '', verifyToken: '', accessToken: '' }));
 
       if (supabase) {
         try {
@@ -447,12 +440,6 @@ export default function App() {
     triggerToast('Plantillas de WhatsApp actualizadas.', 'Ajustes');
   };
 
-  const saveApiSettings = (newApi) => {
-    setApiSettings(newApi);
-    setLocalData('sexloop_api_settings', newApi);
-    triggerToast('Ajustes de la API oficial guardados.', 'Ajustes');
-  };
-
   // Cerrar sidebar al cambiar de pestaña en celular
   const handleViewChange = (viewName) => {
     setCurrentView(viewName);
@@ -589,11 +576,9 @@ export default function App() {
           )}
 
           {currentView === 'settings' && (
-            <CrmSettings 
+            <CrmSettings
               templates={templates}
               saveTemplates={saveTemplates}
-              apiSettings={apiSettings}
-              saveApiSettings={saveApiSettings}
             />
           )}
         </div>
