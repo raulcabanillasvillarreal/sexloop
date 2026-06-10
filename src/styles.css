@@ -926,3 +926,7 @@ body {
     padding: 10px 16px;
   }
 }
+
+/* Spinner para botones de carga (Embedded Signup / Coexistence) */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }

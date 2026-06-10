@@ -18,7 +18,7 @@
 
 import express from 'express';
 import cors from 'cors';
-import { config, validateConfig } from './config.js';
+import { config, validateConfig, GRAPH_BASE } from './config.js';
 import { verifyWebhook, receiveWebhook } from './webhook.js';
 import { sendMessage, sendTemplate, sendMedia, markAsRead, sendTyping } from './sender.js';
 import { runInitialImport, getImportProgress } from './importer.js';
@@ -85,6 +85,27 @@ app.post('/api/typing', async (req, res) => {
   const { waMessageId } = req.body || {};
   const result = await sendTyping(waMessageId);
   res.json(result);
+});
+
+// --- Embedded Signup (Coexistence): intercambio de code por token ---
+app.post('/api/embedded-signup', async (req, res) => {
+  const { code } = req.body || {};
+  if (!code) return res.status(400).json({ ok: false, error: 'code requerido' });
+  if (!config.appId || !config.appSecret) {
+    return res.status(500).json({ ok: false, error: 'Falta META_APP_ID o META_APP_SECRET.' });
+  }
+  try {
+    const url = `${GRAPH_BASE}/oauth/access_token`
+      + `?client_id=${encodeURIComponent(config.appId)}`
+      + `&client_secret=${encodeURIComponent(config.appSecret)}`
+      + `&code=${encodeURIComponent(code)}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    if (!r.ok) return res.status(502).json({ ok: false, error: data?.error?.message || 'Error en intercambio', details: data });
+    res.json({ ok: true, access_token: data.access_token, token_type: data.token_type, expires_in: data.expires_in });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // --- Importación inicial (30 días) --------------------------

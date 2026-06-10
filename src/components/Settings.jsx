@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Plus, Trash2, Edit3, MessageSquare, Key, Sliders, DownloadCloud, Bell, BellOff } from 'lucide-react';
 import { whatsappApi } from '../services/whatsappApi';
 import { isSoundEnabled, setSoundEnabled, requestNotificationPermission } from '../services/notifications';
+import WhatsAppConnect from './WhatsAppConnect';
 
 export default function Settings({ templates, saveTemplates, apiSettings, saveApiSettings }) {
   // --- Importación de historial (30 días) ---
@@ -188,7 +189,10 @@ export default function Settings({ templates, saveTemplates, apiSettings, saveAp
 
       {/* Columna Derecha: Configuración API & Parámetros */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
+
+        {/* Conexión del número real por Coexistence (QR) */}
+        <WhatsAppConnect />
+
         {/* WhatsApp Cloud API Integración */}
         <div className="chart-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
