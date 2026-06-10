@@ -364,6 +364,50 @@ export default function App() {
     }
   };
 
+  // --- INICIAR CHAT CON UN NÚMERO NUEVO ---
+  // Si ya existe un lead con ese teléfono, lo devuelve; si no, lo crea.
+  // Devuelve el lead para que la bandeja lo abra.
+  const startNewChat = async ({ phone, name }) => {
+    const normalized = String(phone).replace(/[^\d]/g, '');
+    if (!normalized) {
+      triggerToast('Ingresa un número válido (con código de país).', 'WhatsApp');
+      return null;
+    }
+
+    // ¿Ya existe?
+    const existing = leads.find(l => String(l.phone || '').replace(/[^\d]/g, '') === normalized);
+    if (existing) return existing;
+
+    const newLead = {
+      name: name?.trim() || `+${normalized}`,
+      phone: `+${normalized}`,
+      origin: 'WhatsApp',
+      stage: 'Nuevo',
+      amount: 0,
+      tags: [],
+      notes: 'Chat iniciado manualmente desde el CRM.',
+      created_at: new Date().toISOString(),
+    };
+
+    if (supabase) {
+      const { data, error } = await supabase.from('leads').insert([newLead]).select();
+      if (!error && data) {
+        setLeads(prev => [data[0], ...prev]);
+        triggerToast(`Chat iniciado con ${newLead.name}.`, 'WhatsApp');
+        return data[0];
+      }
+      triggerToast('No se pudo crear el chat (revisa Supabase).', 'Error');
+      return null;
+    } else {
+      const created = { ...newLead, id: 'lead_' + Date.now() };
+      const updated = [created, ...getLocalData('sexloop_leads', INITIAL_LEADS)];
+      setLeads(updated);
+      setLocalData('sexloop_leads', updated);
+      triggerToast(`Chat iniciado con ${newLead.name}.`, 'WhatsApp');
+      return created;
+    }
+  };
+
   // --- SIMULAR LLEGADA DE NUEVO LEAD WEB ---
   const simulateNewLead = () => {
     const mockNames = ['Diego Valdivia', 'Renzo Castellares', 'Andrea Pajuelo', 'Milagros Soto', 'Piero Rossi'];
@@ -499,7 +543,7 @@ export default function App() {
           </div>
 
           <div className="header-actions">
-            <button className="btn-secondary" onClick={simulateNewLead}>
+            <button className="btn-secondary hide-mobile" onClick={simulateNewLead}>
               <Sparkles size={14} color="var(--rosa)" /> Simular Lead Web
             </button>
             <button className="btn-primary" onClick={() => setShowAddLeadModal(true)}>
@@ -530,6 +574,7 @@ export default function App() {
               onSendText={handleSendText}
               onSendMedia={handleSendMedia}
               onMarkRead={handleMarkRead}
+              onStartNewChat={startNewChat}
               updateLeadDetails={saveEditedLead}
               backendOnline={backendOnline}
               typingLeadId={typingLeadId}

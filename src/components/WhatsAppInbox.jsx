@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Send, Phone, User, Check, CheckCheck, AlertCircle, ArrowLeft, FileText,
-  DollarSign, ClipboardList, Info, Paperclip, Smartphone, Monitor
+  DollarSign, ClipboardList, Info, Paperclip, Smartphone, Monitor, Plus, X
 } from 'lucide-react';
 
 const FALLBACK_TEMPLATES = [
@@ -50,7 +50,7 @@ function MessageMedia({ msg }) {
 
 export default function WhatsAppInbox({
   leads, messages, templates = [],
-  onSendText, onSendMedia, onMarkRead, updateLeadDetails,
+  onSendText, onSendMedia, onMarkRead, onStartNewChat, updateLeadDetails,
   backendOnline = false, typingLeadId = null,
 }) {
   const [activeLeadId, setActiveLeadId] = useState(null);
@@ -58,8 +58,25 @@ export default function WhatsAppInbox({
   const [mobileInChat, setMobileInChat] = useState(false);
   const [showDetailsPanel, setShowDetailsPanel] = useState(true);
   const [sending, setSending] = useState(false);
+  // Composer de "escribir a número nuevo"
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [newPhone, setNewPhone] = useState('');
+  const [newName, setNewName] = useState('');
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const handleCreateNewChat = async (e) => {
+    if (e) e.preventDefault();
+    if (!newPhone.trim() || !onStartNewChat) return;
+    const lead = await onStartNewChat({ phone: newPhone, name: newName });
+    if (lead) {
+      setActiveLeadId(lead.id);
+      setMobileInChat(true);
+      setShowNewChat(false);
+      setNewPhone('');
+      setNewName('');
+    }
+  };
 
   useEffect(() => {
     if (leads.length > 0 && !activeLeadId) setActiveLeadId(leads[0].id);
@@ -132,12 +149,41 @@ export default function WhatsAppInbox({
 
       {/* 1. Lista de Chats */}
       <div className="chat-list">
-        <div className="chat-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="chat-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span>Conversaciones</span>
-          <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: backendOnline ? '#dcfce7' : '#fee2e2', color: backendOnline ? '#16a34a' : '#dc2626' }}>
-            {backendOnline ? '● API conectada' : '○ API offline'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: backendOnline ? '#dcfce7' : '#fee2e2', color: backendOnline ? '#16a34a' : '#dc2626' }}>
+              {backendOnline ? '● API conectada' : '○ API offline'}
+            </span>
+            <button className="new-chat-btn" title="Escribir a un número nuevo" onClick={() => setShowNewChat(v => !v)}>
+              {showNewChat ? <X size={16} /> : <Plus size={16} />}
+            </button>
+          </div>
         </div>
+
+        {/* Formulario: escribir a un número nuevo */}
+        {showNewChat && (
+          <form className="new-chat-form" onSubmit={handleCreateNewChat}>
+            <input
+              type="text"
+              placeholder="Número con código país (ej. +51987654321)"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              autoFocus
+            />
+            <input
+              type="text"
+              placeholder="Nombre (opcional)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <div className="new-chat-actions">
+              <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
+                Iniciar chat
+              </button>
+            </div>
+          </form>
+        )}
         {chatListItems.map(({ lead, lastMsgText, lastMsgTime, unread }) => (
           <div
             key={lead.id}

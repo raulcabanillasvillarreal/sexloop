@@ -10,6 +10,18 @@ const APP_ID = import.meta.env.VITE_META_APP_ID || '';
 const CONFIG_ID = import.meta.env.VITE_META_CONFIG_ID || '';
 const GRAPH_VERSION = 'v19.0';
 
+// Convierte errores técnicos de Meta en mensajes claros para el usuario.
+function friendlyError(raw = '') {
+  const e = String(raw).toLowerCase();
+  if (e.includes('redirect_uri') || e.includes('verification code')) {
+    return 'La conexión por QR estará disponible cuando Meta apruebe la Verificación de Empresa de tu número. Mientras tanto, el CRM ya funciona con la API.';
+  }
+  if (e.includes('client secret') || e.includes('client_secret')) {
+    return 'Falta o es incorrecto el App Secret en el servidor (Vercel). Revísalo y vuelve a intentar.';
+  }
+  return raw || 'No se pudo completar la conexión.';
+}
+
 export default function WhatsAppConnect() {
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState('idle'); // idle | connecting | done | error
@@ -73,7 +85,7 @@ export default function WhatsAppConnect() {
       whatsappApi.embeddedSignup(code, window.location.origin).then((exchange) => {
         if (!exchange.ok) {
           setStatus('error');
-          setError(exchange.error || 'No se pudo obtener el token de acceso.');
+          setError(friendlyError(exchange.error));
           return;
         }
         setResult({
@@ -133,6 +145,12 @@ export default function WhatsAppConnect() {
 
       {!ready && configured && (
         <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 8 }}>Cargando conexión segura con Meta…</p>
+      )}
+
+      {status !== 'done' && (
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 10, lineHeight: 1.5 }}>
+          ℹ️ La conexión del número real requiere la <strong>Verificación de Empresa</strong> de Meta aprobada. Mientras tanto, el CRM ya opera con la API.
+        </p>
       )}
 
       {error && (

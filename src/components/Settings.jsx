@@ -91,7 +91,7 @@ export default function Settings({ templates, saveTemplates, apiSettings, saveAp
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+    <div className="settings-grid">
       {/* Columna Izquierda: Plantillas de Mensajes */}
       <div className="chart-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
