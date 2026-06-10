@@ -1,7 +1,40 @@
-import React, { useState } from 'react';
-import { Save, Plus, Trash2, Edit3, MessageSquare, Key, Sliders } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Save, Plus, Trash2, Edit3, MessageSquare, Key, Sliders, DownloadCloud, Bell, BellOff } from 'lucide-react';
+import { whatsappApi } from '../services/whatsappApi';
+import { isSoundEnabled, setSoundEnabled, requestNotificationPermission } from '../services/notifications';
 
 export default function Settings({ templates, saveTemplates, apiSettings, saveApiSettings }) {
+  // --- Importación de historial (30 días) ---
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [soundOn, setSoundOn] = useState(isSoundEnabled());
+
+  useEffect(() => {
+    let timer;
+    const poll = async () => {
+      const p = await whatsappApi.importStatus();
+      if (!p.offline) setProgress(p);
+      if (importing && p && !p.historyDone) timer = setTimeout(poll, 2000);
+      else setImporting(false);
+    };
+    if (importing) poll();
+    return () => clearTimeout(timer);
+  }, [importing]);
+
+  const handleImport = async () => {
+    const res = await whatsappApi.startImport();
+    if (res.offline) { alert('El backend de WhatsApp no está disponible. Inicia: npm run whatsapp'); return; }
+    if (res.alreadyDone) { alert('La importación ya se realizó antes (sin duplicados).'); }
+    setImporting(true);
+  };
+
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+    if (next) requestNotificationPermission();
+  };
+
   // Estado local para plantillas
   const [localTemplates, setLocalTemplates] = useState([...templates]);
   const [editingTemplateId, setEditingTemplateId] = useState(null);
@@ -201,6 +234,56 @@ export default function Settings({ templates, saveTemplates, apiSettings, saveAp
               <Save size={14} /> Guardar Ajustes API
             </button>
           </form>
+        </div>
+
+        {/* Importación de Historial (30 días · Coexistence) */}
+        <div className="chart-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+            <DownloadCloud size={20} color="var(--violeta)" />
+            <h3 className="chart-header" style={{ margin: 0 }}>Importar Chats de WhatsApp</h3>
+          </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '12px' }}>
+            Importa los chats y mensajes de los <strong>últimos 30 días</strong> desde WhatsApp Business
+            (modo Coexistence). Crea fichas de cliente y trae las etiquetas automáticamente. Se evita duplicar si reconectas.
+          </p>
+
+          {progress && (
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                <span>{importing ? 'Importando…' : (progress.historyDone ? 'Importación completa' : 'Listo para importar')}</span>
+                <span>{progress.importedMessages} msgs · {progress.importedLeads} clientes · {progress.importedLabels} etiquetas</span>
+              </div>
+              <div style={{ height: 8, background: '#eee', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: progress.historyDone ? '100%' : (importing ? '66%' : '8%'),
+                  background: 'linear-gradient(90deg, var(--rosa), var(--violeta))',
+                  transition: 'width .6s ease',
+                }} />
+              </div>
+            </div>
+          )}
+
+          <button className="btn-primary" style={{ alignSelf: 'flex-start' }} onClick={handleImport} disabled={importing}>
+            <DownloadCloud size={14} /> {importing ? 'Importando…' : 'Importar últimos 30 días'}
+          </button>
+        </div>
+
+        {/* Notificaciones */}
+        <div className="chart-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+            <Bell size={20} color="var(--violeta)" />
+            <h3 className="chart-header" style={{ margin: 0 }}>Notificaciones</h3>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.8rem' }}>Sonido de alerta al recibir mensajes</span>
+            <button className="btn-secondary" onClick={toggleSound} style={{ padding: '6px 12px' }}>
+              {soundOn ? <><Bell size={14} /> Activado</> : <><BellOff size={14} /> Silenciado</>}
+            </button>
+          </div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '10px', lineHeight: 1.5 }}>
+            Las notificaciones del navegador y el badge de no leídos en la pestaña se activan al permitir notificaciones.
+          </p>
         </div>
 
         {/* Ajustes Generales de CRM */}

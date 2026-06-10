@@ -12,10 +12,12 @@ import {
   X,
   Settings as SettingsIcon
 } from 'lucide-react';
-import { supabase, getLocalData, setLocalData } from './supabaseClient';
+import { supabase, getLocalData, setLocalData, uploadMediaFile, waMediaType } from './supabaseClient';
+import { whatsappApi } from './services/whatsappApi';
+import { notifyNewMessage, updateTabBadge, requestNotificationPermission } from './services/notifications';
 import Dashboard from './components/Dashboard';
 import KanbanBoard from './components/KanbanBoard';
-import WhatsAppSimulator from './components/WhatsAppSimulator';
+import WhatsAppInbox from './components/WhatsAppInbox';
 import ClientDatabase from './components/ClientDatabase';
 import CrmSettings from './components/Settings';
 
@@ -73,6 +75,10 @@ export default function App() {
   // State de control del sidebar en celular
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Estado de la integración WhatsApp Cloud API
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [typingLeadId] = useState(null); // reservado para indicador "escribiendo..."
+
   // States de Modales
   const [selectedLead, setSelectedLead] = useState(null);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
@@ -122,6 +128,67 @@ export default function App() {
 
     loadData();
   }, []);
+
+  // Ref con los leads actuales (para usarlos dentro de callbacks de Realtime)
+  const leadsRef = React.useRef([]);
+  useEffect(() => { leadsRef.current = leads; }, [leads]);
+
+  // --- Comprobar backend de WhatsApp y pedir permiso de notificaciones ---
+  useEffect(() => {
+    let alive = true;
+    whatsappApi.health().then(h => { if (alive) setBackendOnline(!!h && !h.offline); });
+    requestNotificationPermission();
+    const interval = setInterval(() => {
+      whatsappApi.health().then(h => setBackendOnline(!!h && !h.offline));
+    }, 30000);
+    return () => { alive = false; clearInterval(interval); };
+  }, []);
+
+  // --- SINCRONIZACIÓN EN TIEMPO REAL (Supabase Realtime / Coexistence) ---
+  // Mensajes desde el celular o desde otro dispositivo aparecen al instante.
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('crm-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new;
+        setMessages(prev => {
+          // Evitar duplicados (mismo id o mismo wa_message_id)
+          if (prev.some(m => m.id === msg.id || (msg.wa_message_id && m.wa_message_id === msg.wa_message_id))) {
+            return prev;
+          }
+          return [...prev, msg];
+        });
+        // Notificar solo mensajes entrantes del cliente
+        if (msg.sender === 'client') {
+          const lead = leadsRef.current.find(l => l.id === msg.lead_id);
+          const totalUnread = leadsRef.current.reduce((s, l) => s + (l.unread_count || 0), 0) + 1;
+          notifyNewMessage({ name: lead?.name, text: msg.text, totalUnread });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new;
+        setMessages(prev => prev.map(m => (m.id === msg.id ? { ...m, ...msg } : m)));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (payload) => {
+        const lead = payload.new;
+        setLeads(prev => (prev.some(l => l.id === lead.id) ? prev : [lead, ...prev]));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, (payload) => {
+        const lead = payload.new;
+        setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...lead } : l)));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // --- Badge de no leídos en el título de la pestaña ---
+  useEffect(() => {
+    const totalUnread = leads.reduce((s, l) => s + (l.unread_count || 0), 0);
+    updateTabBadge(totalUnread);
+  }, [leads]);
 
   // Notificación Toast helper
   const triggerToast = (message, title = 'Notificación') => {
@@ -238,6 +305,62 @@ export default function App() {
     if (sender === 'client') {
       const lead = leads.find(l => l.id === leadId);
       triggerToast(`Nuevo mensaje de WhatsApp de ${lead ? lead.name : 'Cliente'}`, 'WhatsApp');
+    }
+  };
+
+  // --- ENVÍO REAL DESDE EL CRM (WhatsApp Cloud API) ---
+  // Si el backend está disponible, envía por la API oficial: el mensaje se
+  // registra en Supabase desde el servidor y vuelve por Realtime (sin duplicar).
+  // Si no hay backend (modo local), guarda localmente como antes.
+  const handleSendText = async (lead, text) => {
+    if (backendOnline && lead.phone) {
+      const res = await whatsappApi.sendMessage(lead.phone, text, lead.id);
+      if (!res.ok) {
+        triggerToast(res.error || 'No se pudo enviar el mensaje por WhatsApp.', 'Error de Envío');
+        if (!supabase) await addMessage(lead.id, 'agent', text); // no perder el texto
+        return;
+      }
+      // Con Supabase, el mensaje vuelve por Realtime (no insertamos para no duplicar).
+      // Sin Supabase no hay Realtime: insertamos localmente para que el agente lo vea.
+      if (!supabase) await addMessage(lead.id, 'agent', text);
+      return;
+    }
+    // Modo local / sin backend
+    await addMessage(lead.id, 'agent', text);
+  };
+
+  const handleSendMedia = async (lead, file) => {
+    if (!lead.phone) {
+      triggerToast('El lead no tiene número de WhatsApp.', 'Error de Envío');
+      return;
+    }
+    const url = await uploadMediaFile(file);
+    if (!url) {
+      triggerToast('No se pudo subir el archivo (revisa Supabase Storage).', 'Error de Adjunto');
+      return;
+    }
+    if (backendOnline) {
+      const res = await whatsappApi.sendMedia(lead.phone, url, waMediaType(file), {
+        filename: file.name,
+        leadId: lead.id,
+      });
+      if (!res.ok) triggerToast(res.error || 'No se pudo enviar el archivo.', 'Error de Envío');
+    } else {
+      triggerToast('Backend de WhatsApp offline. No se envió el archivo.', 'WhatsApp');
+    }
+  };
+
+  // Marcar conversación como leída (sync de lectura CRM → celular)
+  const handleMarkRead = async (lead) => {
+    if (supabase) {
+      await supabase.from('leads').update({ unread_count: 0 }).eq('id', lead.id);
+      setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, unread_count: 0 } : l)));
+    }
+    if (backendOnline) {
+      const lastClientMsg = [...messages]
+        .filter(m => m.lead_id === lead.id && m.sender === 'client' && m.wa_message_id)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      whatsappApi.markRead(lastClientMsg?.wa_message_id, lead.id);
     }
   };
 
@@ -400,12 +523,16 @@ export default function App() {
           )}
 
           {currentView === 'chat' && (
-            <WhatsAppSimulator 
-              leads={leads} 
-              messages={messages} 
-              addMessage={addMessage} 
-              updateLeadDetails={saveEditedLead}
+            <WhatsAppInbox
+              leads={leads}
+              messages={messages}
               templates={templates}
+              onSendText={handleSendText}
+              onSendMedia={handleSendMedia}
+              onMarkRead={handleMarkRead}
+              updateLeadDetails={saveEditedLead}
+              backendOnline={backendOnline}
+              typingLeadId={typingLeadId}
             />
           )}
 
